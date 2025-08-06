@@ -37,7 +37,9 @@ def load_data():
     purchases['Days Since Last Order'] = (max(pd.to_datetime(purchases['Order Date'], format='%d-%m-%Y')) - pd.to_datetime(purchases['Order Date'], format='%d-%m-%Y')).dt.days
     purchases['Profit'] = purchases['Profit'].astype('float')
     purchases['Customer Savings'] = (1-purchases['Discount'].astype('float'))*purchases['Sales']
-
+    
+    purchases.loc[purchases['Product Name']=="Staples",['Category', 'Subcategory']] = ['Office Supplies', 'Fasteners']
+    
     customers = purchases.groupby('Customer ID').agg({'Days Since Last Order': 'min', 'Order ID': ['count','nunique'], 'Ship Mode':','.join, 'Segment': 'first', 'Region': 'first', 'Product Name': ','.join, 'Category':','.join, 'Subcategory':','.join, 'Sales':'sum', 'Quantity':'sum', 'Customer Savings':'sum', 'Profit':'sum'}).reset_index()
     customers.columns = ['Customer ID','Days Since Last Order','Order ID', 'Number of Orders','Ship Mode', 'Segment', 'Region', 'Product Names', 'Categories', 'Subcategories', 'Total Spent', 'Number of Items', 'Customer Savings', 'Retailer Profit']
     customers['Savings per Order'] = customers['Customer Savings'] / customers['Number of Orders']
@@ -52,13 +54,20 @@ def load_data():
     customers['Fast Shipping'] = (customers['Order ID'] - customers['Ship Mode'].apply(lambda x: x.count('Standard Class'))) / customers['Order ID']
     return purchases, customers
 
+def filter_iqr(df, varname):
+  Q1 = df[varname].quantile(0.25)
+  Q3 = df[varname].quantile(0.75)
+  IQR = Q3 - Q1
+  lower_bound = Q1 - 1.5 * IQR
+  upper_bound = Q3 + 1.5 * IQR
+  return df[(df[varname] > lower_bound) & (df[varname] < upper_bound)]
+  
 @st.cache_data
 def process_customer_data(customers):
     customers_processed = customers.copy().set_index('Customer ID')
-    # Log-scale Days Since Last Order and Total Spent since they are highly skewed. 
-    # Also flip the sign of Days Since Last Order so that higher values indicate more recent purchases (in line with higher values being 'good' for other metrics)
-    customers_processed['Days Since Last Order'] = -np.log(customers_processed['Days Since Last Order']+1)
-    customers_processed['Total Spent'] = np.log(customers_processed['Total Spent']+1)
+    customers_processed = filter_iqr(customers_processed, 'Days Since Last Order')
+    customers_processed = filter_iqr(customers_processed, 'Total Spent')
+    customers_processed = filter_iqr(customers_processed, 'Savings per Order')
     customers_processed = customers_processed[['Number of Orders', 'Total Spent', 'Days Since Last Order', 'Items per Order', 'Savings per Order', 'Product Variety', 'Subcategory Variety']]
     scaler = StandardScaler()
     customers_scaled = pd.DataFrame(scaler.fit_transform(customers_processed), index=customers_processed.index, columns=customers_processed.columns)
@@ -72,7 +81,7 @@ def cluster_model(customers_scaled):
     
 @st.cache_data
 def product_associations(purchases):
-    orders = purchases.merge(customers[['Customer ID', 'Cluster']], how='left').groupby("Order ID").agg(
+    orders = purchases.merge(customers['Cluster'], how='left', left_on='Customer ID', right_index=True).groupby("Order ID").agg(
     {'Days Since Last Order': 'first', 'Ship Mode':'first', 'Region': 'first', 'Product Name': list, 'Category':list, 'Subcategory':list, 
      'Sales':'sum', 'Quantity':'sum', 'Customer Savings':'sum', 'Profit':'sum', 'Customer ID':'first', 'Cluster':'first'}
     ).reset_index()
@@ -94,9 +103,12 @@ purchases.loc[purchases['Product Name']=="Staples",['Category', 'Subcategory']] 
 
 customers_scaled = process_customer_data(customers)
 agg_cluster = cluster_model(customers_scaled)
-cluster_labels = {0: "Bulk buyers", 1: "Disengaged", 2: "Loyal", 3: "Moderately engaged"}
-customers['Cluster'] = [cluster_labels[c] for c in agg_cluster.labels_]
-cluster_colors = {"Loyal":"green", "Bulk buyers":"blue", "Moderately engaged":"orange", "Disengaged":"red"}
+cluster_labels = {0: "Bulk buyers", 1: "At risk", 2: "Disengaged", 3: "Engaged"}
+customers_scaled['Cluster'] = [cluster_labels[c] for c in agg_cluster.labels_]
+customers.set_index('Customer ID', inplace=True)
+customers.loc[customers_scaled.index, 'Cluster'] = customers_scaled['Cluster']
+customers.dropna(inplace=True)
+cluster_colors = {"Engaged":"green", "Bulk buyers":"blue", "At risk":"orange", "Disengaged":"red"}
 
 rules = product_associations(purchases)
 
@@ -110,12 +122,12 @@ with tab1:
     with col2:
         if metric1 in ['Number of Orders', 'Product Variety', 'Subcategory Variety']:
             fig = px.strip(customers, x=metric1, y=metric2, color='Cluster',
-            category_orders = {'Cluster': ["Loyal", "Bulk buyers", "Moderately engaged", "Disengaged"]},
+            category_orders = {'Cluster': ["Bulk buyers", "At risk", "Disengaged", "Engaged"]},
             color_discrete_map = cluster_colors,
             )
         else:
             fig = px.scatter(customers, x=metric1, y=metric2, color='Cluster',
-                category_orders = {'Cluster': ["Loyal", "Bulk buyers", "Moderately engaged", "Disengaged"]},
+                category_orders = {'Cluster': ["Bulk buyers", "At risk", "Disengaged", "Engaged"]},
                 color_discrete_map = cluster_colors,
             )
         fig.update_layout(height=400)
@@ -123,27 +135,27 @@ with tab1:
         st.plotly_chart(fig)
     with col3:
         st.markdown("### Segment Averages:")
-        st.dataframe(customers.groupby('Cluster').agg({metric1: lambda x: np.mean(x).round(2), metric2: lambda x: np.mean(x).round(2)}).reindex(["Loyal", "Bulk buyers", "Moderately engaged", "Disengaged"]))
+        st.dataframe(customers.groupby('Cluster').agg({metric1: lambda x: np.mean(x).round(2), metric2: lambda x: np.mean(x).round(2)}).reindex(["Bulk buyers", "At risk", "Disengaged", "Engaged"]))
     st.markdown("---")
     st.markdown("### Customer Lookup")
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:    
-        cust_id = st.selectbox("Customer ID:", customers["Customer ID"].sort_values())
+        cust_id = st.selectbox("Customer ID:", customers_scaled.index.sort_values())
     with col2:
-        clust = customers[customers["Customer ID"] == cust_id]["Cluster"].to_string(index=False)
+        clust = customers.loc[cust_id, "Cluster"]
         st.markdown("### Segment: :" + cluster_colors[clust]+ "[" + clust + "]")
     with col3:
-        st.metric("Number of orders", customers[customers["Customer ID"] == cust_id]["Number of Orders"])
+        st.metric("Number of orders", customers.loc[cust_id,"Number of Orders"])
     with col4:
-        st.metric("Items purchased", customers[customers["Customer ID"] == cust_id]["Number of Items"])
+        st.metric("Items purchased", customers.loc[cust_id,"Number of Items"])
     with col5:
-        st.metric("Total spent", f'${customers.loc[customers["Customer ID"] == cust_id,"Total Spent"].item():.2f}')
+        st.metric("Total spent", f'${customers.loc[cust_id,"Total Spent"].item():.2f}')
 
 with tab2:
     col1, col2, col3, col4 = st.columns(4, border = True)
     with col1:
-        st.markdown("### Loyal Segment:")
-        seg = customers[customers['Cluster']=="Loyal"]
+        st.markdown("### Engaged Segment:")
+        seg = customers[customers['Cluster']=="Engaged"]
         colA, colB, colC = st.columns(3)
         with colA:
             st.metric("Customers", len(seg))
@@ -170,8 +182,8 @@ with tab2:
             fig = fig.update_layout(yaxis_title="", height=300, title=m, legend_visible=False)
             st.plotly_chart(fig)
     with col3:
-        st.markdown("### Moderately Engaged Segment:") 
-        seg = customers[customers['Cluster']=="Moderately engaged"]
+        st.markdown("### At Risk Segment:") 
+        seg = customers[customers['Cluster']=="At risk"]
         colA, colB, colC = st.columns(3)
         with colA:
             st.metric("Customers", len(seg))
@@ -256,6 +268,6 @@ with tab3:
             sampled_items = random.sample(list(possible_items['Product Name']), 3)
             st.markdown("You may also like:")
             for s in sampled_items:               
-                st.badge(s)
+                st.badge(s + " (" + get_product_subcategory(s, purchases) + ")")
         else:
             "No recommended product types found based on current basket"
