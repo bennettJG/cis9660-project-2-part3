@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import date, datetime, timedelta
 from sklearn.cluster import KMeans, DBSCAN, HDBSCAN, AgglomerativeClustering
 from sklearn.preprocessing import StandardScaler
-import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from mlxtend.frequent_patterns import apriori, fpgrowth, association_rules
