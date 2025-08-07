@@ -155,62 +155,62 @@ with tab2:
     with col1:
         st.markdown("### Engaged Segment:")
         seg = customers[customers['Cluster']=="Engaged"]
-        colA, colB, colC = st.columns(3)
+        colA, colB, colC = st.columns([1,2,2])
         with colA:
             st.metric("Customers", len(seg))
         with colB:
             st.metric("Profit per order:", f"${(seg['Retailer Profit per Order'].sum()/len(seg)):.2f}")
         with colC:
             st.metric("Profit per customer:", f"${(seg['Retailer Profit per Order']*seg['Number of Orders']).sum()/len(seg):.2f}")
-        for m in customers_scaled.columns:
+        for m in customers_scaled.columns[:-1]:
             fig = px.histogram(seg, x=m,color='Cluster', color_discrete_map=cluster_colors, range_x=[min(customers[m]), max(customers[m])])
-            fig = fig.update_layout(yaxis_title="", height=300, title=m, legend_visible=False)
+            fig = fig.update_layout(yaxis_title="", height=250, title=m, legend_visible=False)
             st.plotly_chart(fig)
     with col2:
         st.markdown("### Bulk Buyers Segment:")
         seg = customers[customers['Cluster']=="Bulk buyers"]
-        colA, colB, colC = st.columns(3)
+        colA, colB, colC = st.columns([1,2,2])
         with colA:
             st.metric("Customers", len(seg))
         with colB:
             st.metric("Profit per order:", f"${(seg['Retailer Profit per Order'].sum()/len(seg)):.2f}")
         with colC:
             st.metric("Profit per customer:", f"${(seg['Retailer Profit per Order']*seg['Number of Orders']).sum()/len(seg):.2f}")
-        for m in customers_scaled.columns:
+        for m in customers_scaled.columns[:-1]:
             fig = px.histogram(seg, x=m,color='Cluster', color_discrete_map=cluster_colors, range_x=[min(customers[m]), max(customers[m])])
-            fig = fig.update_layout(yaxis_title="", height=300, title=m, legend_visible=False)
+            fig = fig.update_layout(yaxis_title="", height=250, title=m, legend_visible=False)
             st.plotly_chart(fig)
     with col3:
         st.markdown("### At Risk Segment:") 
         seg = customers[customers['Cluster']=="At risk"]
-        colA, colB, colC = st.columns(3)
+        colA, colB, colC = st.columns([1,2,2])
         with colA:
             st.metric("Customers", len(seg))
         with colB:
             st.metric("Profit per order:", f"${(seg['Retailer Profit per Order'].sum()/len(seg)):.2f}")
         with colC:
             st.metric("Profit per customer:", f"${(seg['Retailer Profit per Order']*seg['Number of Orders']).sum()/len(seg):.2f}")
-        for m in customers_scaled.columns:
+        for m in customers_scaled.columns[:-1]:
             fig = px.histogram(seg, x=m,color='Cluster', color_discrete_map=cluster_colors, range_x=[min(customers[m]), max(customers[m])])
-            fig = fig.update_layout(yaxis_title="", height=300, title=m, legend_visible=False)
+            fig = fig.update_layout(yaxis_title="", height=250, title=m, legend_visible=False)
             st.plotly_chart(fig)
     with col4:
         st.markdown("### Disengaged Segment:")
         seg = customers[customers['Cluster']=="Disengaged"]
-        colA, colB, colC = st.columns(3)
+        colA, colB, colC = st.columns([1,2,2])
         with colA:
             st.metric("Customers", len(seg))
         with colB:
             st.metric("Profit per order:", f"${(seg['Retailer Profit per Order'].sum()/len(seg)):.2f}")
         with colC:
             st.metric("Profit per customer:", f"${(seg['Retailer Profit per Order']*seg['Number of Orders']).sum()/len(seg):.2f}")
-        for m in customers_scaled.columns:
+        for m in customers_scaled.columns[:-1]:
             fig = px.histogram(seg, x=m,color='Cluster', color_discrete_map=cluster_colors, range_x=[min(customers[m]), max(customers[m])])
-            fig = fig.update_layout(yaxis_title="", height=300, title=m, legend_visible=False)
+            fig = fig.update_layout(yaxis_title="", height=250, title=m, legend_visible=False)
             st.plotly_chart(fig)
 with tab3:
     st.markdown("## Association Rule Explorer")
-    col1, col2, col3 = st.columns([1,4, 2])
+    col1, col2 = st.columns([2,5])
     with col1:
         min_support = st.slider("Minimum support", min_value=0.0, max_value=0.05, value=0.01, help="Frequency of items being purchased together")
         min_confidence = st.slider("Minimum confidence", min_value=0.0, max_value=0.3, value=0.25, help="Probability that someone who buys the first item ('antecedent') will also buy the second ('consequent')")
@@ -227,7 +227,9 @@ with tab3:
             st.dataframe(filtered_rules[['antecedents','consequents', 'support', 'confidence', 'lift', 'leverage', 'conviction']], hide_index=True)
     category_dict = {'Accessories':'Technology', 'Appliances':'Office Supplies', 'Art':'Office Supplies', 'Binders':'Office Supplies', 'Bookcases':'Furniture', 'Chairs':'Furniture', 'Copiers':'Technology', 'Envelopes':'Office Supplies', 'Fasteners':'Office Supplies', 'Furnishings':'Furniture', 'Labels':'Office Supplies', 'Machines':'Technology', 'Paper':'Office Supplies', 'Phones':'Technology', 'Storage':'Office Supplies', 'Supplies':'Office Supplies', 'Tables':'Furniture'}
     category_colors = {'Furniture':'orange', 'Office Supplies':'blue', 'Technology': 'green'}
-    with col3:
+    st.markdown("---")
+    col1, col2, col3 = st.columns([4, 2, 4])
+    with col1:
         st.markdown("**Rule Network Visualization:**\nHover over a node to see what it represents!")
         G = nx.Graph()        
         # Add nodes and edges
@@ -250,12 +252,11 @@ with tab3:
         graph.node_renderer.data_source.data['colors'] = [category_colors[category_dict[n]] for n in G.nodes]
         graph.node_renderer.glyph.update(fill_color="colors")
         p.renderers.append(graph)
-        streamlit_bokeh.streamlit_bokeh(p, use_container_width=False)
-    st.markdown("---")
-    col1, col2 = st.columns([2, 4])
-    with col1:
-        cart = st.multiselect("Products", options=sorted(purchases["Product Name"].unique()))
+        streamlit_bokeh.streamlit_bokeh(p, use_container_width=True)
     with col2:
+        st.markdown("### Product Recommendations")
+        cart = st.multiselect("Products", options=sorted(purchases["Product Name"].unique()))
+    with col3:
         all_products = purchases[['Product Name', 'Subcategory']].drop_duplicates()
         categories = ', '.join(list(dict.fromkeys(sorted([get_product_subcategory(p, all_products) for p in cart]))))
         sampled_items = []
