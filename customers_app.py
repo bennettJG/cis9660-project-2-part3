@@ -12,6 +12,8 @@ import networkx as nx
 import streamlit_bokeh
 from bokeh.plotting import figure, from_networkx, show
 import random
+import matplotlib.pyplot as plt
+import itertools
 
 random_state = 1701
 
@@ -228,9 +230,10 @@ with tab3:
     category_dict = {'Accessories':'Technology', 'Appliances':'Office Supplies', 'Art':'Office Supplies', 'Binders':'Office Supplies', 'Bookcases':'Furniture', 'Chairs':'Furniture', 'Copiers':'Technology', 'Envelopes':'Office Supplies', 'Fasteners':'Office Supplies', 'Furnishings':'Furniture', 'Labels':'Office Supplies', 'Machines':'Technology', 'Paper':'Office Supplies', 'Phones':'Technology', 'Storage':'Office Supplies', 'Supplies':'Office Supplies', 'Tables':'Furniture'}
     category_colors = {'Furniture':'orange', 'Office Supplies':'blue', 'Technology': 'green'}
     st.markdown("---")
-    col1, col2, col3 = st.columns([4, 2, 4])
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown("**Rule Network Visualization:**\nHover over a node to see what it represents!")
+        st.markdown("#### Rule Network Visualization")
+        st.markdown("Notes: Only pairs of items (2-itemsets) are displayed. Color indicates the broader category (:orange[Furniture], :blue[Office Supplies], or :green[Technology])")
         G = nx.Graph()        
         # Add nodes and edges
         for i, rule in filtered_rules.iterrows():
@@ -242,32 +245,42 @@ with tab3:
                 if rule['consequents'] not in G.nodes:
                     G.add_node(rule['consequents'], category=category_dict[rule['consequents']])
                 G.add_edge(rule['antecedents'], rule['consequents'], weight=rule['support'])
-        p = figure(x_range=(-2, 2), y_range=(-2,2),
-                   x_axis_location=None, y_axis_location=None,
-                   tools="hover", tooltips="@index\n(@category)")
-        p.grid.grid_line_color = None
-        from bokeh.models import Circle, HoverTool
-        graph = from_networkx(G, nx.spring_layout, center=(0,0))
-        graph.node_renderer.glyph = Circle(radius=10, radius_units='screen')
-        graph.node_renderer.data_source.data['colors'] = [category_colors[category_dict[n]] for n in G.nodes]
-        graph.node_renderer.glyph.update(fill_color="colors")
-        p.renderers.append(graph)
-        streamlit_bokeh.streamlit_bokeh(p, use_container_width=True)
+        plt.figure(figsize=(4,4))
+        graph = nx.spring_layout(G, k=1, center=(0,0))
+        node_colors = [category_colors[category_dict[n]] for n in list(G.nodes())]
+        edge_widths = [10*G[i][j]['weight'] for i,j in G.edges()]
+        nx.draw_networkx_nodes(G, graph, node_color=node_colors,
+                     node_size=500, linewidths=2)
+        nx.draw_networkx_edges(G, graph, edge_color='black',
+        width = 10*edge_widths)
+        nx.draw_networkx_labels(G, graph,
+                              font_size=5,
+                              font_weight='bold',
+                              bbox=dict(facecolor='white', 
+                                      edgecolor='none', 
+                                      alpha=0.7))
+        st.pyplot(plt, use_container_width=True)
     with col2:
         st.markdown("#### Product Recommendations")
         cart = st.multiselect("Products", options=sorted(purchases["Product Name"].unique()))
+        st.markdown("Types of items in cart:")
+        for item in cart:
+            cat = get_product_subcategory(item, purchases)
+            st.badge(cat, color=category_colors[category_dict[cat]])
     with col3:
         all_products = purchases[['Product Name', 'Subcategory']].drop_duplicates()
-        categories = ', '.join(list(dict.fromkeys(sorted([get_product_subcategory(p, all_products) for p in cart]))))
+        categories = list(itertools.combinations(list(dict.fromkeys(sorted([get_product_subcategory(p, all_products) for p in cart]))),2))
+        categories = [', '.join(c) for c in categories]
+        categories += [get_product_subcategory(p, all_products) for p in cart]
         sampled_items = []
-        if categories in list(filtered_rules['antecedents']):
-            possible_categories = []
-            for i, rule in filtered_rules[filtered_rules['antecedents']==categories].iterrows():
-                possible_categories += rule['consequents'].split(', ')
-            possible_items = all_products[all_products['Subcategory'].isin(possible_categories)]
-            sampled_items = random.sample(list(possible_items['Product Name']), 3)
-            st.markdown("You may also like:")
-            for s in sampled_items:               
-                st.badge(s + " (" + get_product_subcategory(s, purchases) + ")")
+        possible_categories = filtered_rules[filtered_rules['antecedents'].isin(categories)]["consequents"]
+        possible_items = all_products[all_products['Subcategory'].isin(possible_categories)]
+        if len(possible_items) == 0:
+            st.markdown("No recommended product types found based on current basket")
         else:
-            "No recommended product types found based on current basket"
+            sampled_items = random.sample(list(possible_items['Product Name']), 3)
+            st.markdown("#### You may also like:")
+            for s in sampled_items:  
+                cat = get_product_subcategory(s, purchases)
+                st.badge(s + " [" + cat + "]", color=category_colors[category_dict[cat]])
+            
