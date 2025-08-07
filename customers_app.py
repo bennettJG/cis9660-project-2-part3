@@ -247,14 +247,14 @@ with tab3:
                    tools="hover", tooltips="@index\n(@category)")
         p.grid.grid_line_color = None
         from bokeh.models import Circle, HoverTool
-        graph = from_networkx(G, nx.spring_layout, scale=1, center=(0,0))
+        graph = from_networkx(G, nx.spring_layout, center=(0,0))
         graph.node_renderer.glyph = Circle(radius=10, radius_units='screen')
         graph.node_renderer.data_source.data['colors'] = [category_colors[category_dict[n]] for n in G.nodes]
         graph.node_renderer.glyph.update(fill_color="colors")
         p.renderers.append(graph)
         streamlit_bokeh.streamlit_bokeh(p, use_container_width=True)
     with col2:
-        st.markdown("### Product Recommendations")
+        st.markdown("#### Product Recommendations")
         cart = st.multiselect("Products", options=sorted(purchases["Product Name"].unique()))
     with col3:
         all_products = purchases[['Product Name', 'Subcategory']].drop_duplicates()
