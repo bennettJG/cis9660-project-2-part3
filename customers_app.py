@@ -248,7 +248,7 @@ with tab3:
         p.grid.grid_line_color = None
         from bokeh.models import Circle, HoverTool
         graph = from_networkx(G, nx.spring_layout, scale=1, center=(0,0))
-        graph.node_renderer.glyph = Circle(radius=0.08)
+        graph.node_renderer.glyph = Circle(radius=10, radius_units='screen')
         graph.node_renderer.data_source.data['colors'] = [category_colors[category_dict[n]] for n in G.nodes]
         graph.node_renderer.glyph.update(fill_color="colors")
         p.renderers.append(graph)
