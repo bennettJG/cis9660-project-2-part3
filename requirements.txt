@@ -5,5 +5,3 @@ scikit-learn
 plotly
 mlxtend
 networkx
-streamlit_bokeh
-bokeh

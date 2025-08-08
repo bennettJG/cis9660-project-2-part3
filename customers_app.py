@@ -9,8 +9,6 @@ import plotly.graph_objects as go
 from mlxtend.frequent_patterns import apriori, fpgrowth, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 import networkx as nx
-import streamlit_bokeh
-from bokeh.plotting import figure, from_networkx, show
 import random
 import matplotlib.pyplot as plt
 import itertools
@@ -151,6 +149,16 @@ with tab1:
         st.metric("Items purchased", customers.loc[cust_id,"Number of Items"])
     with col5:
         st.metric("Total spent", f'${customers.loc[cust_id,"Total Spent"].item():.2f}')
+    st.markdown("---")
+    from sklearn.decomposition import PCA
+    st.markdown("### Principal Components Visualization")
+    st.markdown("Three components explain 82% of the variance in the data.") 
+    pca = PCA(n_components=3)
+    customers_pca = pca.fit_transform(customers_scaled.drop('Cluster', axis=1))
+    customers_pca = pd.DataFrame(customers_pca, columns = ['Component 0: Financial', 'Component 1: Bulk', 'Component 2: Recency'])
+    customers_pca['Cluster'] = customers_scaled.reset_index()['Cluster']
+    fig = px.scatter_3d(customers_pca, x='Component 0: Financial', y='Component 1: Bulk', z='Component 2: Recency', color='Cluster', opacity=0.6, size_max=0.01, color_discrete_map = cluster_colors)
+    st.plotly_chart(fig, width=800)
 
 with tab2:
     col1, col2, col3, col4 = st.columns(4, border = True)
